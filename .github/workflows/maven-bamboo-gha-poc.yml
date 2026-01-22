@@ -1,0 +1,25 @@
+name: migrating_to_github_actions/maven-bamboo-gha-poc
+on:
+#   # The shortest interval you can run scheduled workflows is once every 5 minutes.
+#   period: '180'
+env:
+  DEPLOY_PATH: "/tmp/deploy"
+  JAVA_VERSION: '11'
+jobs:
+  Default-Stage-Default-Job:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clean working directory
+      run: rm -rf ${{ github.workspace }}/*
+      shell: bash
+    - uses: actions/checkout@v4.1.0
+    - run: |-
+        echo "Java version:"
+        java -version
+        chmod +x mvnw
+        ./mvnw clean package
+    - uses: actions/upload-artifact@v4.1.0
+      with:
+        name: MTGA-MAV_build-artifact
+        path: target/*.jar
+        if-no-files-found: ignore
