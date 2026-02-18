@@ -1,0 +1,112 @@
+name: demo/medium_showcase_plan
+on:
+  # The following schedule was transformed and may behave differently than in Bamboo.
+  # In GitHub Actions, this workflow will run on this schedule regardless of any changes whereas in Bamboo a job will only run if there are changes.
+  schedule:
+  - cron: 0 0 * * *
+env:
+  env_JAVA_HOME: "/opt/java/openjdk"
+  env_MAVEN_OPTS: "-Xms512m -Xmx2048m"
+  sonar_host_url: https://sonar.mycompany.com
+  sonar_password: "${{ secrets.sonar_password }}"
+  version: 2.3.1
+jobs:
+  Checkout-and-Setup-Environment-Checkout-and--Setup:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4.1.0
+    - name: Clean working directory
+      run: rm -rf ${{ github.workspace }}/*
+      shell: bash
+    - name: Environment Setup
+      run: |-
+        echo "Java Home: ${{ env.env_"
+        java -version
+        mvn -version
+  Code-Compile-Compile:
+    runs-on: ubuntu-latest
+    needs:
+    - Checkout-and-Setup-Environment-Checkout-and--Setup
+    steps:
+    - name: Maven Compile
+      run: |-
+        echo "mvn clean compile"
+        mvn clean compile
+    - uses: actions/upload-artifact@v4.1.0
+      with:
+        name: DEMO-MSP_compile-artifact
+        path: "**/*.class"
+        if-no-files-found: error
+  Static-Code-Analysis-Code-Analysis:
+    runs-on: ubuntu-latest
+    needs:
+    - Checkout-and-Setup-Environment-Checkout-and--Setup
+    - Code-Compile-Compile
+    steps:
+    - name: Run SonarQube Analysis
+      run: |-
+        mvn sonar:sonar \
+          -Dsonar.projectKey=${{ github.workflow }} \
+          -Dsonar.host.url=${{ env.sonar_host_url }} \
+          -Dsonar.login=${{ env.sonar_password }}
+  Unit-Tests-Unit-Tests:
+    runs-on: ubuntu-latest
+    needs:
+    - Checkout-and-Setup-Environment-Checkout-and--Setup
+    - Code-Compile-Compile
+    - Static-Code-Analysis-Code-Analysis
+    steps:
+    - uses: actions/download-artifact@v4.1.0
+      with:
+        name: DEMO-MSP_compile-artifact
+    - name: Maven Test
+      run: mvn test -q
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2.12.0
+      if: always()
+      with:
+        junit_files: "**/target/surefire-reports/*.xml"
+    - uses: actions/upload-artifact@v4.1.0
+      with:
+        name: DEMO-MSP_unit-test-report
+        path: "*.xml"
+        if-no-files-found: error
+  Integration-Tests-Integration-Tests:
+    runs-on: ubuntu-latest
+    needs:
+    - Checkout-and-Setup-Environment-Checkout-and--Setup
+    - Code-Compile-Compile
+    - Static-Code-Analysis-Code-Analysis
+    - Unit-Tests-Unit-Tests
+    steps:
+    - uses: actions/download-artifact@v4.1.0
+      with:
+        name: DEMO-MSP_compile-artifact
+    - name: Maven Verify
+      run: mvn verify -Pintegration
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2.12.0
+      if: always()
+      with:
+        junit_files: "**/target/failsafe-reports/*.xml"
+    - uses: actions/upload-artifact@v4.1.0
+      with:
+        name: DEMO-MSP_integration-test-report
+        path: "*.xml"
+        if-no-files-found: error
+  Package-and-Artifact-Preparation-Package:
+    runs-on: ubuntu-latest
+    needs:
+    - Checkout-and-Setup-Environment-Checkout-and--Setup
+    - Code-Compile-Compile
+    - Static-Code-Analysis-Code-Analysis
+    - Unit-Tests-Unit-Tests
+    - Integration-Tests-Integration-Tests
+    steps:
+    - name: Maven Package
+      run: mvn package -DskipTests
+    - uses: actions/upload-artifact@v4.1.0
+      with:
+        name: DEMO-MSP_build-artifact
+        path: "*.jar"
+        if-no-files-found: ignore
